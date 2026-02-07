@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import Response
 
 app = FastAPI(title="GLAMFLOW")
 
@@ -12,27 +12,19 @@ def home():
 
 @app.post("/webhook")
 async def whatsapp_webhook(request: Request):
-    """
-    Webhook para WhatsApp (Twilio)
-    """
-    form = await request.form()
-    incoming_msg = form.get("Body", "").strip().lower()
-
-    # Respuesta básica (por ahora)
-    response_message = (
-        "Hola 👋 Bienvenida a Salón BELLA FLOW ✨\n"
-        "Soy GLAMFLOW, el asistente automático de citas.\n\n"
-        "Responde con un número 👇\n\n"
-        "1️⃣ Agendar cita\n"
-        "2️⃣ Ver precios\n"
-        "3️⃣ Ubicación\n"
-        "4️⃣ Hablar con el salón"
-    )
-
-    twilio_response = f"""
+    twiml = """<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Message>{response_message}</Message>
-</Response>
-""".strip()
+    <Message>
+Hola 👋 Bienvenida a Salón BELLA FLOW ✨
+Soy GLAMFLOW, el asistente automático de citas.
 
-    return PlainTextResponse(content=twilio_response, media_type="application/xml")
+Responde con un número 👇
+
+1️⃣ Agendar cita
+2️⃣ Ver precios
+3️⃣ Ubicación
+4️⃣ Hablar con el salón
+    </Message>
+</Response>
+"""
+    return Response(content=twiml, media_type="application/xml")
