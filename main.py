@@ -1,15 +1,18 @@
 from fastapi import FastAPI, Body
 from datetime import datetime
-import sqlite3
+import psycopg2
+import os
 
 app = FastAPI()
 
-conn = sqlite3.connect("appointments.db", check_same_thread=False)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+conn = psycopg2.connect(DATABASE_URL)
 cursor = conn.cursor()
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS appointments (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     name TEXT,
     service TEXT,
     date TEXT,
@@ -24,7 +27,7 @@ conn.commit()
 def create_appointment(data: dict = Body(...)):
     cursor.execute("""
         INSERT INTO appointments (name, service, date, time, code, status)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s, %s)
     """, (
         data.get("name"),
         data.get("service"),
@@ -44,9 +47,29 @@ def today_appointments():
     cursor.execute("""
         SELECT name, service, date, time, code, status
         FROM appointments
-        WHERE date = ?
+        WHERE date = %s
     """, (today,))
 
+    rows = cursor.fetchall()
+
+    return [
+        {
+            "name": r[0],
+            "service": r[1],
+            "date": r[2],
+            "time": r[3],
+            "code": r[4],
+            "status": r[5]
+        }
+        for r in rows
+    ]
+
+@app.get("/all-appointments")
+def all_appointments():
+    cursor.execute("""
+        SELECT name, service, date, time, code, status
+        FROM appointments
+    """)
     rows = cursor.fetchall()
 
     return [
