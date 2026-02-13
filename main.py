@@ -12,12 +12,15 @@ def root():
 @app.post("/create-appointment")
 def create_appointment(data: dict = Body(...)):
     appointments.append(data)
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "guardado": data,
+        "total_en_memoria": len(appointments)
+    }
 
 @app.get("/today-appointments")
 def today_appointments():
-    today = datetime.now().strftime("%Y-%m-%d")
-    return [
-        a for a in appointments
-        if a.get("date") == today
-    ]
+    return {
+        "total_en_memoria": len(appointments),
+        "contenido": appointments
+    }
