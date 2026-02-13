@@ -2,11 +2,12 @@ from fastapi import FastAPI, Body
 from datetime import datetime
 import psycopg2
 import os
-print("DATABASE_URL:", DATABASE_URL)
 
 app = FastAPI()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+print("DATABASE_URL:", DATABASE_URL)
 
 conn = None
 cursor = None
