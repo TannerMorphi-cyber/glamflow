@@ -13,7 +13,7 @@ cursor = None
 def get_connection():
     global conn, cursor
     if conn is None:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = psycopg2.connect(DATABASE_URL, sslmode="require")
         cursor = conn.cursor()
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS appointments (
