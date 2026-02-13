@@ -2,6 +2,7 @@ from fastapi import FastAPI, Body
 from datetime import datetime
 import psycopg2
 import os
+print("DATABASE_URL:", DATABASE_URL)
 
 app = FastAPI()
 
