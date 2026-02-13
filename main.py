@@ -1,23 +1,26 @@
+import os
+import psycopg2
 from fastapi import FastAPI, Body
 from datetime import datetime
-import psycopg2
-import os
 
 app = FastAPI()
 
+# ✅ Primero definimos la variable
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# ✅ Luego podemos imprimirla
 print("DATABASE_URL:", DATABASE_URL)
 
-conn = None
-cursor = None
-
 def get_connection():
-    global conn, cursor
-    if conn is None:
-        conn = psycopg2.connect(DATABASE_URL, sslmode="require")
-        cursor = conn.cursor()
-        cursor.execute("""
+    return psycopg2.connect(DATABASE_URL, sslmode="require")
+
+
+@app.post("/create-appointment")
+def create_appointment(data: dict = Body(...)):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS appointments (
             id SERIAL PRIMARY KEY,
             name TEXT,
@@ -27,14 +30,8 @@ def get_connection():
             code TEXT,
             status TEXT
         )
-        """)
-        conn.commit()
-    return conn, cursor
-
-
-@app.post("/create-appointment")
-def create_appointment(data: dict = Body(...)):
-    conn, cursor = get_connection()
+    """)
+    conn.commit()
 
     cursor.execute("""
         INSERT INTO appointments (name, service, date, time, code, status)
@@ -47,14 +44,19 @@ def create_appointment(data: dict = Body(...)):
         data.get("code"),
         data.get("status"),
     ))
+
     conn.commit()
+    cursor.close()
+    conn.close()
 
     return {"status": "ok"}
 
 
 @app.get("/today-appointments")
 def today_appointments():
-    conn, cursor = get_connection()
+    conn = get_connection()
+    cursor = conn.cursor()
+
     today = datetime.now().strftime("%Y-%m-%d")
 
     cursor.execute("""
@@ -64,6 +66,9 @@ def today_appointments():
     """, (today,))
 
     rows = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
 
     return [
         {
