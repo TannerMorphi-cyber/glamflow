@@ -79,3 +79,27 @@ def today_appointments():
         }
         for r in rows
     ]
+def create_business_fk():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            ALTER TABLE appointments
+            ADD COLUMN IF NOT EXISTS business_id INTEGER;
+        """)
+
+        cursor.execute("""
+            ALTER TABLE appointments
+            ADD CONSTRAINT fk_business
+            FOREIGN KEY (business_id)
+            REFERENCES businesses(id)
+            ON DELETE CASCADE;
+        """)
+
+        conn.commit()
+    except Exception as e:
+        print("FK ya existe o error:", e)
+    finally:
+        cursor.close()
+        conn.close()
