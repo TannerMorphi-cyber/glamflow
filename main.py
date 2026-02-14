@@ -106,3 +106,20 @@ def create_business_fk():
 @app.on_event("startup")
 def startup_event():
     create_business_fk()
+def fix_old_appointments():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        UPDATE appointments
+        SET business_id = 1
+        WHERE business_id IS NULL;
+    """)
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+@app.on_event("startup")
+def startup_event():
+    create_business_fk()
+    fix_old_appointments()
