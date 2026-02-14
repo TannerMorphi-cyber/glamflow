@@ -50,10 +50,29 @@ def create_appointment(data: dict = Body(...)):
     return {"status": "ok"}
 
 
-@app.get("/today-appointments")
-def today_appointments():
+from datetime import date
+
+@app.get("/today-appointments/{business_id}")
+def get_today_appointments(business_id: int):
     conn = get_connection()
     cursor = conn.cursor()
+
+    today = date.today()
+
+    cursor.execute("""
+        SELECT name, service, date, time, code, status
+        FROM appointments
+        WHERE date = %s
+        AND business_id = %s
+    """, (today, business_id))
+
+    appointments = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return {"appointments": appointments}
+
 
     today = datetime.now().strftime("%Y-%m-%d")
 
