@@ -103,3 +103,6 @@ def create_business_fk():
     finally:
         cursor.close()
         conn.close()
+@app.on_event("startup")
+def startup_event():
+    create_business_fk()
