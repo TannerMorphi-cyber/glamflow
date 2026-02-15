@@ -1,3 +1,8 @@
+def get_mexico_today():
+    mexico_tz = pytz.timezone("America/Mexico_City")
+    mexico_now = datetime.now(mexico_tz)
+    return mexico_now.date()
+
 from fastapi import FastAPI, HTTPException
 from datetime import datetime
 import pytz
