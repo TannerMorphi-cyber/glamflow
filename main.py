@@ -171,7 +171,7 @@ def get_today_appointments(api_key: str):
     cursor = conn.cursor()
 
     try:
-        today = date.today().strftime("%Y-%m-%d")
+        today = get_mexico_today().strftime("%Y-%m-%d")
 
         # Buscar negocio
         cursor.execute("""
