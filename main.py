@@ -1,69 +1,70 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from datetime import date
 import psycopg2
 import os
+import secrets
 
 app = FastAPI()
 
-# 🔹 Conexión a Railway PostgreSQL
+
+# ===============================
+# 🔹 CONEXIÓN DATABASE
+# ===============================
 def get_connection():
     return psycopg2.connect(os.environ["DATABASE_URL"])
 
 
-# 🔹 Crear columna y FK si no existen
-def create_business_fk():
+# ===============================
+# 🔹 CREAR COLUMNAS NECESARIAS
+# ===============================
+def run_migrations():
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
+        # Agregar business_id a appointments
         cursor.execute("""
             ALTER TABLE appointments
             ADD COLUMN IF NOT EXISTS business_id INTEGER;
         """)
 
-        cursor.execute("""
-            DO $$
-            BEGIN
-                IF NOT EXISTS (
-                    SELECT 1 FROM information_schema.table_constraints 
-                    WHERE constraint_name = 'fk_business'
-                ) THEN
-                    ALTER TABLE appointments
-                    ADD CONSTRAINT fk_business
-                    FOREIGN KEY (business_id)
-                    REFERENCES businesses(id)
-                    ON DELETE CASCADE;
-                END IF;
-            END$$;
-        """)
-
-        conn.commit()
-    except Exception as e:
-        print("Error FK:", e)
-    finally:
-        cursor.close()
-        conn.close()
-        
-import secrets
-
-def add_api_key_column():
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    try:
+        # Agregar api_key a businesses
         cursor.execute("""
             ALTER TABLE businesses
             ADD COLUMN IF NOT EXISTS api_key TEXT;
         """)
+
+        # Crear FK si no existe
+        cursor.execute("""
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints
+                WHERE constraint_name = 'fk_business'
+            ) THEN
+                ALTER TABLE appointments
+                ADD CONSTRAINT fk_business
+                FOREIGN KEY (business_id)
+                REFERENCES businesses(id)
+                ON DELETE CASCADE;
+            END IF;
+        END$$;
+        """)
+
         conn.commit()
+
     except Exception as e:
-        print("Error api_key column:", e)
+        print("Migration error:", e)
+
     finally:
         cursor.close()
         conn.close()
 
 
-# 🔹 Reparar citas viejas
+# ===============================
+# 🔹 REPARAR CITAS VIEJAS
+# ===============================
 def fix_old_appointments():
     conn = get_connection()
     cursor = conn.cursor()
@@ -75,8 +76,8 @@ def fix_old_appointments():
             WHERE business_id IS NULL;
         """)
         conn.commit()
-    except Exception as e:
-        print("Error fix:", e)
+    except:
+        pass
     finally:
         cursor.close()
         conn.close()
@@ -84,12 +85,46 @@ def fix_old_appointments():
 
 @app.on_event("startup")
 def startup_event():
-    create_business_fk()
+    run_migrations()
     fix_old_appointments()
-    add_api_key_column()
 
 
-# 🔹 Crear cita
+# ===============================
+# 🔹 CREAR NEGOCIO (AUTO API KEY)
+# ===============================
+@app.post("/create-business")
+def create_business(data: dict):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    api_key = "sk_" + secrets.token_hex(16)
+
+    try:
+        cursor.execute("""
+            INSERT INTO businesses (name, api_key)
+            VALUES (%s, %s)
+            RETURNING id;
+        """, (data.get("name"), api_key))
+
+        business_id = cursor.fetchone()[0]
+        conn.commit()
+
+        return {
+            "business_id": business_id,
+            "api_key": api_key
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ===============================
+# 🔹 CREAR CITA
+# ===============================
 @app.post("/appointments")
 def create_appointment(data: dict):
     conn = get_connection()
@@ -114,14 +149,16 @@ def create_appointment(data: dict):
         return {"message": "Cita creada correctamente"}
 
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
     finally:
         cursor.close()
         conn.close()
 
 
-# 🔹 Obtener citas de hoy por negocio
+# ===============================
+# 🔹 CONSULTAR CITAS DE HOY POR API KEY
+# ===============================
 @app.get("/today-appointments")
 def get_today_appointments(api_key: str):
     conn = get_connection()
@@ -130,7 +167,7 @@ def get_today_appointments(api_key: str):
     try:
         today = date.today().strftime("%Y-%m-%d")
 
-        # Buscar negocio por api_key
+        # Buscar negocio
         cursor.execute("""
             SELECT id FROM businesses
             WHERE api_key = %s;
@@ -139,11 +176,11 @@ def get_today_appointments(api_key: str):
         result = cursor.fetchone()
 
         if not result:
-            return {"error": "API key inválida"}
+            raise HTTPException(status_code=401, detail="API key inválida")
 
         business_id = result[0]
 
-        # Obtener citas
+        # Obtener citas del día
         cursor.execute("""
             SELECT name, service, date, time, code, status
             FROM appointments
@@ -167,40 +204,8 @@ def get_today_appointments(api_key: str):
         return {"appointments": appointments}
 
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
     finally:
         cursor.close()
-        conn.close()
-
-
-        @app.post("/create-business")
-def create_business(data: dict):
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    api_key = "sk_" + secrets.token_hex(16)
-
-    try:
-        cursor.execute("""
-            INSERT INTO businesses (name, api_key)
-            VALUES (%s, %s)
-            RETURNING id;
-        """, (data.get("name"), api_key))
-
-        business_id = cursor.fetchone()[0]
-        conn.commit()
-
-        return {
-            "business_id": business_id,
-            "api_key": api_key
-        }
-
-    except Exception as e:
-        return {"error": str(e)}
-
-    finally:
-        cursor.close()
-        conn.close()
-
         conn.close()
