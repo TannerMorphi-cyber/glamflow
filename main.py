@@ -192,7 +192,7 @@ def get_today_appointments(api_key: str):
             FROM appointments
             WHERE date = %s
             AND business_id = %s;
-        """, (get_mexico_today, business_id))
+        """, (today, business_id))
 
         rows = cursor.fetchall()
 
