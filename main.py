@@ -43,6 +43,24 @@ def create_business_fk():
     finally:
         cursor.close()
         conn.close()
+        
+import secrets
+
+def add_api_key_column():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            ALTER TABLE businesses
+            ADD COLUMN IF NOT EXISTS api_key TEXT;
+        """)
+        conn.commit()
+    except Exception as e:
+        print("Error api_key column:", e)
+    finally:
+        cursor.close()
+        conn.close()
 
 
 # 🔹 Reparar citas viejas
@@ -68,6 +86,7 @@ def fix_old_appointments():
 def startup_event():
     create_business_fk()
     fix_old_appointments()
+    add_api_key_column()
 
 
 # 🔹 Crear cita
@@ -103,19 +122,33 @@ def create_appointment(data: dict):
 
 
 # 🔹 Obtener citas de hoy por negocio
-@app.get("/today-appointments/{business_id}")
-def get_today_appointments(business_id: int):
+@app.get("/today-appointments")
+def get_today_appointments(api_key: str):
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
         today = date.today().strftime("%Y-%m-%d")
 
+        # Buscar negocio por api_key
+        cursor.execute("""
+            SELECT id FROM businesses
+            WHERE api_key = %s;
+        """, (api_key,))
+
+        result = cursor.fetchone()
+
+        if not result:
+            return {"error": "API key inválida"}
+
+        business_id = result[0]
+
+        # Obtener citas
         cursor.execute("""
             SELECT name, service, date, time, code, status
             FROM appointments
             WHERE date = %s
-            AND business_id = %s
+            AND business_id = %s;
         """, (today, business_id))
 
         rows = cursor.fetchall()
@@ -138,4 +171,36 @@ def get_today_appointments(business_id: int):
 
     finally:
         cursor.close()
+        conn.close()
+
+
+        @app.post("/create-business")
+def create_business(data: dict):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    api_key = "sk_" + secrets.token_hex(16)
+
+    try:
+        cursor.execute("""
+            INSERT INTO businesses (name, api_key)
+            VALUES (%s, %s)
+            RETURNING id;
+        """, (data.get("name"), api_key))
+
+        business_id = cursor.fetchone()[0]
+        conn.commit()
+
+        return {
+            "business_id": business_id,
+            "api_key": api_key
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
+    finally:
+        cursor.close()
+        conn.close()
+
         conn.close()
